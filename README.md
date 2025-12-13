@@ -342,5 +342,5 @@ export_interface.export_state(game_state, turn, format='json')  # 或 'pkl'
 
 ---
 
-**最后更新**: 2024年12月
+**最后更新**: 2025年12月14日
 
