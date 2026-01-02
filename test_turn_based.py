@@ -23,7 +23,11 @@ def test_turn_based():
         return
     
     print(f"地图尺寸: {layout_obj.width} x {layout_obj.height}")
-    print(f"Ghost数量: {layout_obj.getNumGhosts()}")
+    print(f"地图中Ghost数量: {layout_obj.getNumGhosts()}")
+    
+    # 设置鬼的数量（可以自定义，比如4个）
+    num_ghosts = 4  # 可以修改这个值来调整鬼的数量
+    print(f"实际使用Ghost数量: {num_ghosts}")
     
     # 创建回合制接口（导出截图和状态）
     export_interface = TurnBasedInterface(output_dir="turn_based_output")
@@ -33,7 +37,7 @@ def test_turn_based():
     
     # 创建agents
     pacman = KeyboardAgent()
-    ghosts = [DirectionalGhost(i+1) for i in range(layout_obj.getNumGhosts())]
+    ghosts = [DirectionalGhost(i+1) for i in range(num_ghosts)]
     
     # 创建游戏（传入exportInterface）
     rules = ClassicGameRules()

@@ -15,9 +15,10 @@
   - 启动游戏循环
 - **运行方式**: `python test_turn_based.py`
 - **特点**: 
-  - 回合制规则：Ghost 先移动，Pac-Man 后移动
+  - 回合制规则：Pac-Man 先移动，然后所有 Ghost 依次移动
   - 每回合自动导出截图（PNG）和游戏状态（PKL/JSON）
   - 支持键盘控制（WASD 或方向键）
+  - 可自定义 Ghost 数量（默认 4 个）
 
 #### 2. **game.py** - 游戏核心逻辑
 - **功能**: 定义游戏的基础框架和运行机制
@@ -47,19 +48,26 @@
     - 能量丸（power pellet）: 5 分
     - 吃鬼分数递增: 10 × 2^n（n 为连续吃鬼次数）
     - 走路不扣分（已移除时间惩罚）
+  - **传送门系统**: 
+    - 地图中的 `Q` 字符表示传送门（透明显示）
+    - Pac-Man 可以移动到传送门位置并传送到另一个传送门
+    - Ghost 将传送门视为墙，无法通过
+    - 传送目标优先选择"内侧"位置（朝向地图中心）
   - **状态管理**: 跟踪生命数、连续吃鬼次数、得分等
 
 #### 4. **layout.py** - 地图加载
 - **功能**: 从 `.lay` 文件加载游戏地图
 - **地图格式**:
-  - `%`: 墙壁
-  - `.`: 糖豆
+  - `%`: 墙壁（土黄色）
+  - `.`: 糖豆（Food Pellet）
   - `o`: 能量丸（Power Pellet）
   - `P`: Pac-Man 起始位置
-  - `G`: Ghost 起始位置
+  - `G`: Ghost 起始位置（所有 Ghost 都从此位置初始化）
+  - `Q`: 传送门（透明显示，Pac-Man 可传送，Ghost 视为墙）
 - **方法**:
   - `getLayout(name)`: 加载指定名称的地图文件
   - 自动从 `layouts/` 目录查找地图文件
+  - `getNumGhosts()`: 返回地图中定义的 Ghost 数量（实际使用数量可在代码中自定义）
 
 #### 5. **graphicsDisplay.py** - 图形显示
 - **功能**: 使用 Tkinter 渲染游戏画面
@@ -69,8 +77,15 @@
   - 实时更新游戏画面
 - **特点**: 
   - 支持自定义缩放（zoom 参数）
+  - 支持独立调整网格宽度和高度（`gridWidth` 和 `gridHeight` 参数）
   - 显示分数和生命数
   - 使用 Canvas 进行图形渲染
+  - 可自定义元素颜色和尺寸：
+    - 墙壁颜色（`WALL_COLOR`，默认土黄色）
+    - 背景颜色（`BACKGROUND_COLOR`，默认蓝色）
+    - 食物颜色和尺寸（`FOOD_COLOR`，`FOOD_WIDTH_SCALE`，`FOOD_HEIGHT_SCALE`）
+    - 能量丸颜色和尺寸（`CAPSULE_COLOR`，`CAPSULE_WIDTH_SCALE`，`CAPSULE_HEIGHT_SCALE`）
+    - Ghost 颜色（`GHOST_COLORS`，支持多种颜色）
 
 #### 6. **graphicsUtils.py** - 图形工具
 - **功能**: 提供底层图形绘制函数
@@ -101,6 +116,10 @@
 - **搜索算法**: 
   - 使用 `search.aStarSearch()` 和 `manhattanDistance` 启发式函数
   - 如果 A* 失败，回退到基于距离的简单策略
+- **Ghost 数量**: 
+  - 可在 `test_turn_based.py` 中自定义数量（默认 4 个）
+  - 所有 Ghost 都从地图中第一个 `G` 位置初始化
+  - 每个 Ghost 显示不同颜色（红、蓝、橙、绿等）
 
 #### 9. **turnBasedInterface.py** - 回合制接口
 - **功能**: 提供截图和游戏状态导出功能
@@ -224,6 +243,16 @@ python test_turn_based.py
 - **默认**: `DirectionalGhost`（智能 Ghost）
 - **正常状态**: 使用 A* 算法追踪 Pac-Man
 - **恐惧状态**: 逃离 Pac-Man
+- **数量**: 可自定义（默认 4 个），所有 Ghost 从同一位置初始化
+
+### 传送门系统
+- **地图标记**: `Q` 字符表示传送门
+- **视觉效果**: 透明显示（不绘制墙）
+- **功能**:
+  - Pac-Man 可以移动到传送门位置并自动传送到另一个传送门
+  - Ghost 将传送门视为墙，无法通过
+  - 传送目标优先选择"内侧"位置（朝向地图中心）
+  - 地图中必须恰好有 2 个传送门
 
 ## 📊 数据导出格式
 
@@ -258,11 +287,43 @@ python test_turn_based.py
 display = graphicsDisplay.PacmanGraphics(zoom=0.5)  # 0.5 = 一半大小
 ```
 
-### 修改 Ghost AI
+### 修改 Ghost 数量和 AI
 在 `test_turn_based.py` 中修改:
 ```python
+# 设置 Ghost 数量（默认 4 个）
+num_ghosts = 4  # 可以修改这个值
+
 from ghostAgents import RandomGhost, DirectionalGhost
-ghosts = [DirectionalGhost(i+1) for i in range(layout_obj.getNumGhosts())]
+ghosts = [DirectionalGhost(i+1) for i in range(num_ghosts)]
+```
+
+### 修改网格尺寸
+在 `test_turn_based.py` 中修改:
+```python
+# 独立调整网格宽度和高度
+display = graphicsDisplay.PacmanGraphics(
+    zoom=0.5,
+    gridWidth=30.0,  # 网格宽度
+    gridHeight=80.0  # 网格高度
+)
+```
+
+### 修改游戏元素颜色和尺寸
+在 `graphicsDisplay.py` 中修改常量:
+```python
+# 墙壁颜色
+WALL_COLOR = formatColor(231.0/255.0, 197.0/255.0, 82.0/255.0)  # 土黄色
+
+# 背景颜色
+BACKGROUND_COLOR = formatColor(20/255, 65/255, 202/255)  # 蓝色
+
+# 食物尺寸（相对于网格）
+FOOD_WIDTH_SCALE = 0.5   # 食物宽度比例
+FOOD_HEIGHT_SCALE = 0.05  # 食物高度比例
+
+# 能量丸尺寸（相对于网格）
+CAPSULE_WIDTH_SCALE = 0.25  # 能量丸宽度比例
+CAPSULE_HEIGHT_SCALE = 0.3  # 能量丸高度比例
 ```
 
 ### 修改导出格式
@@ -274,22 +335,29 @@ export_interface.export_state(game_state, turn, format='json')  # 或 'pkl'
 ## 📝 地图文件格式
 
 `.lay` 文件使用文本格式，字符含义：
-- `%`: 墙壁（Wall）
+- `%`: 墙壁（Wall，土黄色）
 - `.`: 糖豆（Food Pellet）
 - `o`: 能量丸（Power Pellet）
 - `P`: Pac-Man 起始位置
-- `G`: Ghost 起始位置
+- `G`: Ghost 起始位置（所有 Ghost 都从此位置初始化）
+- `Q`: 传送门（透明显示，Pac-Man 可传送，Ghost 视为墙，必须恰好有 2 个）
 - `空格`: 可通行区域
 
 示例：
 ```
-%%%%%%%%%%%%%%%%%%%
-%......%...%......%
-%.%%%.%.%.%.%%%.%.%
-%o...%.%.%.%...o%
-%.%%%.%.%.%.%%%.%.%
-%......%...%......%
-%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%Q%%%%%%%%%%%%%%%%%%%
+% . . . . . .  % . . . %  . . . . . . %
+%o %%%  %  %%  %  %%%  %  %%  %  %%% o%
+% . . . % . . . . . . . . . . % . . . %
+%%%%  %%%  %%%%%  %%%  %%%%%  %%%  %%%%
+% . . . . . .  % . . . %  . . . . . . %
+%  %%%  %  %%  %  %%%  %  %%  %  %%%  %
+% . . . % . . . . %G% . . . . % . . . %
+%%%%  %%%  %%%%%  % %  %%%%%  %%%  %%%%
+% . . . . . .  % . P . %  . . . . . . %
+%o %%%  %  %%  %  %%%  %  %%  %  %%% o%
+% . . . % . . . . . . . . . . % . . . %
+%%%%%%%%%%%%%%%%%%%Q%%%%%%%%%%%%%%%%%%%
 ```
 
 ## 🐛 常见问题
@@ -331,6 +399,11 @@ export_interface.export_state(game_state, turn, format='json')  # 或 'pkl'
 - ✅ 优化截图机制（使用 mss 库）
 - ✅ 实现游戏目录自动命名（基于得分）
 - ✅ 项目结构优化（文件整理到根目录）
+- ✅ 实现传送门系统（Q 字符，透明显示）
+- ✅ 支持自定义 Ghost 数量（所有 Ghost 从同一位置初始化）
+- ✅ 调整移动顺序（Pac-Man 先走，然后 Ghost 依次移动）
+- ✅ 实现可自定义的图形元素（颜色、尺寸、网格比例）
+- ✅ 支持独立调整网格宽度和高度
 
 ## 📄 许可证
 
@@ -342,5 +415,5 @@ export_interface.export_state(game_state, turn, format='json')  # 或 'pkl'
 
 ---
 
-**最后更新**: 2025年12月14日
+**最后更新**: 2025年1月2日
 

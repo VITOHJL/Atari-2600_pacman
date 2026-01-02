@@ -108,7 +108,10 @@ class DirectionalGhost( GhostAgent ):
         ghostState = state.getGhostState( self.index )
         legalActions = state.getLegalActions( self.index )
         pos = state.getGhostPosition( self.index )
-        isScared = ghostState.scaredTimer > 0
+        # 判断是否应该躲避：
+        # 1. scaredTimer > 0：正常的白色鬼状态
+        # 2. scaredTimer == 0 但 ghostsEatenInRow >= 20：不变成白色，但会躲避
+        isScared = ghostState.scaredTimer > 0 or (ghostState.scaredTimer == 0 and state.data.ghostsEatenInRow >= 20)
         pacmanPosition = state.getPacmanPosition()
 
         # 使用A*算法找到最短路径（正常状态）或最长路径（害怕状态）

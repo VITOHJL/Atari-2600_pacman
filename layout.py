@@ -33,6 +33,7 @@ class Layout:
         self.capsules = []
         self.agentPositions = []
         self.numGhosts = 0
+        self.portals = []  # 存储传送门位置 (x, y)
         self.processLayoutText(layoutText)
         self.layoutText = layoutText
         self.totalFood = len(self.food.asList())
@@ -117,6 +118,10 @@ class Layout:
     def processLayoutChar(self, x, y, layoutChar):
         if layoutChar == '%':
             self.walls[x][y] = True
+        elif layoutChar == 'Q':
+            # Q 是传送门，对鬼来说就是墙，对Pac-Man来说可以传送
+            self.walls[x][y] = True
+            self.portals.append((x, y))
         elif layoutChar == '.':
             self.food[x][y] = True
         elif layoutChar == 'o':

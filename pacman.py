@@ -43,6 +43,7 @@ from game import GameStateData
 from game import Game
 from game import Directions
 from game import Actions
+from game import Configuration
 from util import nearestPoint
 from util import manhattanDistance
 import util, layout
@@ -274,9 +275,9 @@ class ClassicGameRules:
         self.timeout = timeout
 
     def newGame( self, layout, pacmanAgent, ghostAgents, display, quiet = False, catchExceptions=False):
-        agents = [pacmanAgent] + ghostAgents[:layout.getNumGhosts()]
+        agents = [pacmanAgent] + ghostAgents  # 使用所有提供的鬼，不受地图中鬼数量限制
         initState = GameState()
-        initState.initialize( layout, len(ghostAgents) )
+        initState.initialize( layout, len(ghostAgents) )  # 使用实际提供的鬼数量
         game = Game(agents, display, self, catchExceptions=catchExceptions)
         game.state = initState
         self.initialState = initState.deepCopy()
@@ -287,6 +288,11 @@ class ClassicGameRules:
         """
         Checks to see whether it is time to end the game.
         """
+        # 检查是否完成一轮（所有食物被吃光）
+        if hasattr(state.data, '_roundComplete') and state.data._roundComplete:
+            self.startNewRound(state, game)
+            state.data._roundComplete = False
+        
         if state.isWin(): self.win(state, game)
         if state.isLose(): self.lose(state, game)
 
@@ -297,6 +303,50 @@ class ClassicGameRules:
     def lose( self, state, game ):
         if not self.quiet: print("Pacman died! Score: %d" % state.data.score)
         game.gameOver = True
+
+    def startNewRound(self, state, game):
+        """
+        开始新一轮：所有食物被吃光后触发
+        - 糖豆人生命+1
+        - 所有鬼回到重置位置
+        - Pac-Man也回到初始位置
+        - 食物、能量豆全部刷新
+        - 积分继续累计
+        - 之前吃过鬼的次数也继续累计
+        """
+        if not self.quiet: 
+            print("Round Complete! Starting new round... Lives: %d -> %d" % (state.data.lives, state.data.lives + 1))
+        
+        # 生命+1
+        state.data.lives += 1
+        
+        # 刷新食物和能量豆（从initialState复制，确保是初始状态）
+        initialState = self.initialState
+        state.data.food = initialState.data.food.deepCopy()
+        state.data.capsules = initialState.data.capsules[:]
+        
+        # 重置所有agent位置到初始位置
+        # 重置Pac-Man位置
+        pacmanState = state.data.agentStates[0]
+        pacmanState.configuration = pacmanState.start
+        
+        # 重置所有鬼的位置
+        for index in range(1, len(state.data.agentStates)):
+            ghostState = state.data.agentStates[index]
+            # 创建新的Configuration对象，确保configuration和start是独立的
+            from game import Configuration
+            start_pos = ghostState.start.getPosition()
+            start_dir = ghostState.start.getDirection()
+            ghostState.configuration = Configuration(start_pos, start_dir)
+            ghostState.scaredTimer = 0
+            ghostState.respawnTimer = 0  # 重置复活状态
+        
+        # 清除可能阻止游戏继续的标志
+        state.data._win = False
+        state.data._lose = False
+        
+        # 积分和ghostsEatenInRow保持不变（继续累计）
+        # 不需要做任何操作，因为它们已经在state.data中
 
     def getProgress(self, game):
         return float(game.state.getNumFood()) / self.initialState.getNumFood()
@@ -332,8 +382,16 @@ class PacmanRules:
     def getLegalActions( state ):
         """
         Returns a list of possible actions.
+        For Pac-Man, portals (Q) are not considered walls, allowing movement through them.
         """
-        return Actions.getPossibleActions( state.getPacmanState().configuration, state.data.layout.walls )
+        # 创建 walls 的副本，将传送门位置标记为非墙（仅对 Pac-Man）
+        walls = state.data.layout.walls.copy()
+        portals = getattr(state.data.layout, 'portals', [])
+        for portal_pos in portals:
+            x, y = portal_pos
+            walls[x][y] = False  # 传送门对 Pac-Man 来说不是墙
+        
+        return Actions.getPossibleActions( state.getPacmanState().configuration, walls )
     getLegalActions = staticmethod( getLegalActions )
 
     def applyAction( state, action ):
@@ -350,10 +408,63 @@ class PacmanRules:
         vector = Actions.directionToVector( action, PacmanRules.PACMAN_SPEED )
         pacmanState.configuration = pacmanState.configuration.generateSuccessor( vector )
 
-        # Eat
+        # 检查传送门传送
         next = pacmanState.configuration.getPosition()
         nearest = nearestPoint( next )
         if manhattanDistance( nearest, next ) <= 0.5 :
+            # 检查是否在传送门上
+            portals = getattr(state.data.layout, 'portals', [])
+            if nearest in portals and len(portals) == 2:
+                # 找到另一个传送门
+                other_portal = portals[0] if portals[1] == nearest else portals[1]
+                target_x, target_y = other_portal
+                layout = state.data.layout
+                
+                # 判断"内侧"方向：朝向地图中心的方向
+                # 地图中心y坐标
+                center_y = layout.height / 2.0
+                
+                # 如果传送门在中心上方（y值大），内侧是下方（y-1，朝向中心）
+                # 如果传送门在中心下方（y值小），内侧是上方（y+1，朝向中心）
+                if target_y > center_y:
+                    # 传送门在上半部分，内侧是下方
+                    inner_direction = (0, -1)  # 向下
+                    outer_direction = (0, 1)   # 向上
+                else:
+                    # 传送门在下半部分，内侧是上方
+                    inner_direction = (0, 1)   # 向上
+                    outer_direction = (0, -1)   # 向下
+                
+                # 优先尝试内侧方向
+                inner_x = target_x + inner_direction[0]
+                inner_y = target_y + inner_direction[1]
+                if (0 <= inner_x < layout.width and 0 <= inner_y < layout.height and 
+                    not layout.walls[inner_x][inner_y]):
+                    target_pos = (inner_x, inner_y)
+                # 如果内侧不行，尝试外侧方向
+                else:
+                    outer_x = target_x + outer_direction[0]
+                    outer_y = target_y + outer_direction[1]
+                    if (0 <= outer_x < layout.width and 0 <= outer_y < layout.height and 
+                        not layout.walls[outer_x][outer_y]):
+                        target_pos = (outer_x, outer_y)
+                    # 如果内外侧都不行，尝试左右
+                    elif target_x > 0 and not layout.walls[target_x - 1][target_y]:
+                        target_pos = (target_x - 1, target_y)
+                    elif target_x < layout.width - 1 and not layout.walls[target_x + 1][target_y]:
+                        target_pos = (target_x + 1, target_y)
+                    else:
+                        # 如果都不行，就传送到传送门本身的位置
+                        target_pos = other_portal
+                
+                # 传送Pac-Man到目标位置
+                # 保持当前方向
+                current_dir = pacmanState.configuration.direction
+                pacmanState.configuration = Configuration(target_pos, current_dir)
+                # 更新位置用于后续的吃豆逻辑
+                next = target_pos
+                nearest = target_pos
+            
             # Remove food
             PacmanRules.consume( nearest, state )
     applyAction = staticmethod( applyAction )
@@ -370,7 +481,8 @@ class PacmanRules:
             numFood = state.getNumFood()
             if numFood == 0 and not state.data._lose:
                 state.data.scoreChange += 500
-                state.data._win = True
+                # 不直接设置_win，而是设置一个标志，让游戏规则处理新一轮
+                state.data._roundComplete = True
         # Eat capsule (能量丸)
         if( position in state.getCapsules() ):
             state.data.capsules.remove( position )
@@ -378,8 +490,16 @@ class PacmanRules:
             # 能量丸分数：5分
             state.data.scoreChange += 5
             # Reset all ghosts' scared timers
+            # 白色鬼持续时间随着吃的鬼数量增多而减少
+            # 基础时间40回合，每吃一个鬼减少2回合，最小为0回合
+            # 第0个鬼被吃后：40回合
+            # 第1个鬼被吃后：38回合
+            # 第2个鬼被吃后：36回合
+            # ...
+            # 第20个及以后：0回合（不变成白色，不能被吃，但会躲避）
+            scaredTime = max(0, SCARED_TIME - state.data.ghostsEatenInRow * 2)
             for index in range( 1, len( state.data.agentStates ) ):
-                state.data.agentStates[index].scaredTimer = SCARED_TIME
+                state.data.agentStates[index].scaredTimer = scaredTime
     consume = staticmethod( consume )
 
 class GhostRules:
@@ -392,7 +512,12 @@ class GhostRules:
         Ghosts cannot stop, and cannot turn around unless they
         reach a dead end, but can turn 90 degrees at intersections.
         """
-        conf = state.getGhostState( ghostIndex ).configuration
+        ghostState = state.getGhostState( ghostIndex )
+        # 如果鬼处于死亡状态（等待复活），不移动
+        if ghostState.respawnTimer > 0:
+            return []  # 返回空列表，鬼不移动
+        
+        conf = ghostState.configuration
         possibleActions = Actions.getPossibleActions( conf, state.data.layout.walls )
         reverse = Actions.reverseDirection( conf.direction )
         if Directions.STOP in possibleActions:
@@ -403,12 +528,15 @@ class GhostRules:
     getLegalActions = staticmethod( getLegalActions )
 
     def applyAction( state, action, ghostIndex):
+        ghostState = state.data.agentStates[ghostIndex]
+        # 如果鬼处于死亡状态，不移动
+        if ghostState.respawnTimer > 0:
+            return  # 不执行任何动作
 
         legal = GhostRules.getLegalActions( state, ghostIndex )
         if action not in legal:
             raise Exception("Illegal ghost action " + str(action))
 
-        ghostState = state.data.agentStates[ghostIndex]
         speed = GhostRules.GHOST_SPEED
         if ghostState.scaredTimer > 0: speed /= 2.0
         vector = Actions.directionToVector( action, speed )
@@ -427,11 +555,17 @@ class GhostRules:
         if agentIndex == 0: # Pacman just moved; Anyone can kill him
             for index in range( 1, len( state.data.agentStates ) ):
                 ghostState = state.data.agentStates[index]
+                # 跳过死亡状态的鬼（它们不应该与Pac-Man碰撞）
+                if ghostState.respawnTimer > 0:
+                    continue
                 ghostPosition = ghostState.configuration.getPosition()
                 if GhostRules.canKill( pacmanPosition, ghostPosition ):
                     GhostRules.collide( state, ghostState, index )
         else:
             ghostState = state.data.agentStates[agentIndex]
+            # 跳过死亡状态的鬼（它们不应该与Pac-Man碰撞）
+            if ghostState.respawnTimer > 0:
+                return
             ghostPosition = ghostState.configuration.getPosition()
             if GhostRules.canKill( pacmanPosition, ghostPosition ):
                 GhostRules.collide( state, ghostState, agentIndex )
@@ -444,6 +578,12 @@ class GhostRules:
             state.data.ghostsEatenInRow += 1
             points = 10 * (2 ** state.data.ghostsEatenInRow)
             state.data.scoreChange += points
+            
+            # 鬼被吃：设置复活倒计时
+            # 复活时间固定为16回合
+            ghostState.respawnTimer = 16
+            
+            # 将鬼移动到初始位置（但处于死亡状态，不立即复活）
             GhostRules.placeGhost(state, ghostState)
             ghostState.scaredTimer = 0
             # Added for first-person
@@ -466,6 +606,8 @@ class GhostRules:
                         ghostState = state.data.agentStates[index]
                         ghostState.configuration = ghostState.start
                         ghostState.scaredTimer = 0
+                        # 重置复活状态（如果鬼处于死亡状态，保持死亡状态）
+                        # 注意：这里不重置respawnTimer，让鬼继续等待复活
                     # 重置连续吃鬼计数
                     state.data.ghostsEatenInRow = 0
     collide = staticmethod( collide )
@@ -475,7 +617,11 @@ class GhostRules:
     canKill = staticmethod( canKill )
 
     def placeGhost(state, ghostState):
-        ghostState.configuration = ghostState.start
+        # 创建新的Configuration对象，而不是直接引用start
+        # 这样可以确保configuration和start是独立的
+        start_pos = ghostState.start.getPosition()
+        start_dir = ghostState.start.getDirection()
+        ghostState.configuration = Configuration(start_pos, start_dir)
     placeGhost = staticmethod( placeGhost )
 
 #############################

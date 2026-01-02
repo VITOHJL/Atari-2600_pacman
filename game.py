@@ -129,6 +129,8 @@ class AgentState:
         self.scaredTimer = 0
         self.numCarrying = 0
         self.numReturned = 0
+        # 复活机制：鬼被吃后的状态
+        self.respawnTimer = 0  # 复活倒计时（回合数），0表示存活
 
     def __str__( self ):
         if self.isPacman:
@@ -150,6 +152,7 @@ class AgentState:
         state.scaredTimer = self.scaredTimer
         state.numCarrying = self.numCarrying
         state.numReturned = self.numReturned
+        state.respawnTimer = self.respawnTimer
         return state
 
     def getPosition(self):
@@ -392,6 +395,7 @@ class GameStateData:
         self._agentMoved = None
         self._lose = False
         self._win = False
+        self._roundComplete = False  # 标记是否完成一轮（所有食物被吃光）
         self.scoreChange = 0
 
     def deepCopy( self ):
@@ -505,12 +509,27 @@ class GameStateData:
         self.ghostsEatenInRow = 0  # 连续吃鬼计数（用于分数递增）
 
         self.agentStates = []
-        numGhosts = 0
+        # 找到Pac-Man和第一个鬼的位置
+        pacman_pos = None
+        first_ghost_pos = None
         for isPacman, pos in layout.agentPositions:
-            if not isPacman:
-                if numGhosts == numGhostAgents: continue # Max ghosts reached already
-                else: numGhosts += 1
-            self.agentStates.append( AgentState( Configuration( pos, Directions.STOP), isPacman) )
+            if isPacman:
+                pacman_pos = pos
+            elif first_ghost_pos is None:
+                first_ghost_pos = pos
+        
+        # 如果没找到鬼的位置，使用默认位置（地图中心附近）
+        if first_ghost_pos is None:
+            first_ghost_pos = (layout.width // 2, layout.height // 2)
+        
+        # 添加Pac-Man
+        if pacman_pos is not None:
+            self.agentStates.append( AgentState( Configuration( pacman_pos, Directions.STOP), True) )
+        
+        # 添加所有鬼，都从同一个位置初始化
+        for i in range(numGhostAgents):
+            self.agentStates.append( AgentState( Configuration( first_ghost_pos, Directions.STOP), False) )
+        
         self._eaten = [False for a in self.agentStates]
 
 try:
@@ -688,16 +707,36 @@ class Game:
             return True
 
         while not self.gameOver:
-            # ========== 回合制：每个Ghost走一步后，等待Pac-Man走一步 ==========
+            # ========== 更新所有鬼的复活倒计时 ==========
+            for ghostIndex in range(1, numAgents):
+                ghostState = self.state.data.agentStates[ghostIndex]
+                if ghostState.respawnTimer > 0:
+                    ghostState.respawnTimer -= 1
+                    # 如果倒计时为0，鬼复活（保持在初始位置）
+                    if ghostState.respawnTimer == 0:
+                        # 创建新的Configuration对象，确保configuration和start是独立的
+                        from game import Configuration
+                        start_pos = ghostState.start.getPosition()
+                        start_dir = ghostState.start.getDirection()
+                        ghostState.configuration = Configuration(start_pos, start_dir)
+                        ghostState.scaredTimer = 0
+            
+            # ========== 回合制：Pac-Man先走一步，然后每个Ghost走一步 ==========
+            # Pac-Man先移动
+            if not processAgentMove(0):  # Pac-Man is agent 0
+                break
+            if self.gameOver:
+                break
+            
+            # 然后所有Ghost依次移动
             for ghostIndex in range(1, numAgents):  # Ghost agents (1 to numAgents-1)
+                # 跳过死亡状态的鬼（它们不移动）
+                ghostState = self.state.data.agentStates[ghostIndex]
+                if ghostState.respawnTimer > 0:
+                    continue  # 跳过死亡状态的鬼
+                
                 # Ghost移动
                 if not processAgentMove(ghostIndex):
-                    break
-                if self.gameOver:
-                    break
-                
-                # Pac-Man移动
-                if not processAgentMove(0):  # Pac-Man is agent 0
                     break
                 if self.gameOver:
                     break
