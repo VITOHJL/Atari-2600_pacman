@@ -1,235 +1,105 @@
 # Pac-Man 游戏项目
 
-一个用于训练视觉模型的 Pac-Man 游戏实现，支持回合制和实时两种模式，并提供完整的截图和游戏状态导出功能。
+一个功能完整的 Pac-Man 游戏实现，支持回合制游戏、自动地图生成、无限关卡循环等特性。
 
-## 📁 项目结构
+## 项目简介
 
-### 核心代码文件
+本项目基于 UC Berkeley 的 Pac-Man AI 项目修改，实现了以下核心功能：
 
-#### 1. **test_turn_based.py** - 主入口文件
-- **功能**: 回合制游戏的主程序入口
-- **作用**: 
-  - 加载地图和配置游戏参数
-  - 创建 Pac-Man 和 Ghost 智能体
-  - 初始化回合制接口（导出截图和状态）
-  - 启动游戏循环
-- **运行方式**: `python test_turn_based.py`
-- **特点**: 
-  - 回合制规则：Pac-Man 先移动，然后所有 Ghost 依次移动
-  - 每回合自动导出截图（PNG）和游戏状态（PKL/JSON）
-  - 支持键盘控制（WASD 或方向键）
-  - 可自定义 Ghost 数量（默认 4 个）
+- ✅ **回合制游戏模式**：Pac-Man 先移动，然后 Ghost 依次移动
+- ✅ **无限关卡循环**：完成一关后自动进入下一关，生命+1，食物和能量豆刷新
+- ✅ **传送门系统**：地图中的 `Q` 字符表示传送门，Pac-Man 可传送，Ghost 视为墙
+- ✅ **自定义 Ghost 数量**：可指定任意数量的 Ghost，所有 Ghost 从同一位置初始化
+- ✅ **自动地图生成**：支持自动生成连通的地图，包含传送门、食物、能量豆等
+- ✅ **Ghost 复活机制**：Ghost 被吃后等待 16 回合复活，白色鬼持续时间随吃鬼次数递减
+- ✅ **可自定义显示**：支持调整食物/能量豆颜色和尺寸、背景颜色、网格比例等
+- ✅ **多种 Agent 类型**：支持键盘控制、随机移动、贪心算法等
 
-#### 2. **game.py** - 游戏核心逻辑
-- **功能**: 定义游戏的基础框架和运行机制
-- **主要内容**:
-  - `Agent` 基类：所有智能体的基类
-  - `Game` 类：游戏主循环，管理回合、状态更新、胜负判定
-  - `Directions` 和 `Actions`：方向定义和动作处理
-  - `GameStateData`：游戏状态数据容器
-- **关键方法**:
-  - `Game.run()`: 执行游戏主循环
-  - `Game.generateSuccessor()`: 生成下一状态
-- **修改点**: 
-  - 移除了 Agent 超时机制
-  - 集成了 `TurnBasedInterface` 用于数据导出
+## 快速开始
 
-#### 3. **pacman.py** - Pac-Man 游戏规则
-- **功能**: 实现 Pac-Man 的具体游戏规则和状态管理
-- **主要内容**:
-  - `GameState`: 游戏状态类，包含所有游戏信息
-  - `ClassicGameRules`: 经典游戏规则
-  - `PacmanRules`: Pac-Man 移动和吃豆规则
-  - `GhostRules`: Ghost 移动和碰撞规则
-- **游戏规则实现**:
-  - **生命系统**: 初始 4 条生命，失去生命后继续游戏，只有生命 ≤ 0 时游戏结束
-  - **分数系统**:
-    - 糖豆（food pellet）: 1 分
-    - 能量丸（power pellet）: 5 分
-    - 吃鬼分数递增: 10 × 2^n（n 为连续吃鬼次数）
-    - 走路不扣分（已移除时间惩罚）
-  - **传送门系统**: 
-    - 地图中的 `Q` 字符表示传送门（透明显示）
-    - Pac-Man 可以移动到传送门位置并传送到另一个传送门
-    - Ghost 将传送门视为墙，无法通过
-    - 传送目标优先选择"内侧"位置（朝向地图中心）
-  - **状态管理**: 跟踪生命数、连续吃鬼次数、得分等
+### 安装依赖
 
-#### 4. **layout.py** - 地图加载
-- **功能**: 从 `.lay` 文件加载游戏地图
-- **地图格式**:
-  - `%`: 墙壁（土黄色）
-  - `.`: 糖豆（Food Pellet）
-  - `o`: 能量丸（Power Pellet）
-  - `P`: Pac-Man 起始位置
-  - `G`: Ghost 起始位置（所有 Ghost 都从此位置初始化）
-  - `Q`: 传送门（透明显示，Pac-Man 可传送，Ghost 视为墙）
-- **方法**:
-  - `getLayout(name)`: 加载指定名称的地图文件
-  - 自动从 `layouts/` 目录查找地图文件
-  - `getNumGhosts()`: 返回地图中定义的 Ghost 数量（实际使用数量可在代码中自定义）
-
-#### 5. **graphicsDisplay.py** - 图形显示
-- **功能**: 使用 Tkinter 渲染游戏画面
-- **主要内容**:
-  - `PacmanGraphics`: 主图形显示类
-  - `InfoPane`: 信息面板（显示分数、生命数）
-  - 实时更新游戏画面
-- **特点**: 
-  - 支持自定义缩放（zoom 参数）
-  - 支持独立调整网格宽度和高度（`gridWidth` 和 `gridHeight` 参数）
-  - 显示分数和生命数
-  - 使用 Canvas 进行图形渲染
-  - 可自定义元素颜色和尺寸：
-    - 墙壁颜色（`WALL_COLOR`，默认土黄色）
-    - 背景颜色（`BACKGROUND_COLOR`，默认蓝色）
-    - 食物颜色和尺寸（`FOOD_COLOR`，`FOOD_WIDTH_SCALE`，`FOOD_HEIGHT_SCALE`）
-    - 能量丸颜色和尺寸（`CAPSULE_COLOR`，`CAPSULE_WIDTH_SCALE`，`CAPSULE_HEIGHT_SCALE`）
-    - Ghost 颜色（`GHOST_COLORS`，支持多种颜色）
-
-#### 6. **graphicsUtils.py** - 图形工具
-- **功能**: 提供底层图形绘制函数
-- **作用**: 
-  - 封装 Tkinter Canvas 操作
-  - 提供绘制圆形、矩形、文本等基础图形函数
-  - 管理全局 Canvas 和窗口对象
-
-#### 7. **keyboardAgents.py** - 键盘控制
-- **功能**: 实现键盘控制的 Pac-Man Agent
-- **控制方式**:
-  - `W` / `↑`: 向上移动
-  - `S` / `↓`: 向下移动
-  - `A` / `←`: 向左移动
-  - `D` / `→`: 向右移动
-  - `空格`: 停止不动
-  - `Q`: 退出游戏
-- **类**: `KeyboardAgent` - 继承自 `Agent` 基类
-
-#### 8. **ghostAgents.py** - Ghost AI
-- **功能**: 实现 Ghost 的智能体行为
-- **Ghost 类型**:
-  - `RandomGhost`: 随机移动的 Ghost（已弃用）
-  - `DirectionalGhost`: 智能 Ghost（默认使用）
-    - **正常状态**: 使用 A* 算法追踪 Pac-Man
-    - **恐惧状态**: 使用距离计算逃离 Pac-Man
-    - 使用 `GhostPositionSearchProblem` 定义搜索问题
-- **搜索算法**: 
-  - 使用 `search.aStarSearch()` 和 `manhattanDistance` 启发式函数
-  - 如果 A* 失败，回退到基于距离的简单策略
-- **Ghost 数量**: 
-  - 可在 `test_turn_based.py` 中自定义数量（默认 4 个）
-  - 所有 Ghost 都从地图中第一个 `G` 位置初始化
-  - 每个 Ghost 显示不同颜色（红、蓝、橙、绿等）
-
-#### 9. **turnBasedInterface.py** - 回合制接口
-- **功能**: 提供截图和游戏状态导出功能
-- **主要功能**:
-  - `export_screenshot(turn)`: 导出当前回合的截图（PNG 格式）
-    - 使用 `mss` 库捕获 Canvas 区域
-    - 自动缓存 Canvas 尺寸，确保截图一致性
-  - `export_state(game_state, turn, format)`: 导出游戏状态
-    - `format='pkl'`: 使用 pickle 保存完整 GameState 对象（默认）
-    - `format='json'`: 保存关键信息的 JSON 格式
-  - `export_turn(game_state, turn)`: 同时导出截图和状态
-  - `finalize_game(final_score)`: 游戏结束时重命名输出目录
-- **输出目录结构**:
-  ```
-  turn_based_output/
-    score_{得分}_{随机数}/
-      screenshots/
-        turn_000001.png
-        turn_000002.png
-        ...
-      states/
-        state_000001.pkl
-        state_000002.pkl
-        ...
-  ```
-- **特点**:
-  - 每局游戏自动创建唯一目录
-  - 游戏结束时根据最终得分重命名目录
-  - 支持临时目录（游戏进行中）和最终目录（游戏结束后）
-
-#### 10. **util.py** - 工具函数
-- **功能**: 提供通用工具函数
-- **主要内容**:
-  - `manhattanDistance()`: 曼哈顿距离计算
-  - `Counter`: 计数器类（用于概率分布）
-  - `chooseFromDistribution()`: 根据概率分布选择动作
-  - `nearestPoint()`: 找到最近的点
-  - 其他辅助函数
-
-#### 11. **search.py** - 搜索算法
-- **功能**: 实现通用搜索算法
-- **算法**:
-  - `aStarSearch()`: A* 搜索算法（用于 Ghost 路径规划）
-  - 其他搜索算法（BFS, DFS, UCS 等）
-- **用途**: 被 `ghostAgents.py` 中的 `DirectionalGhost` 使用
-
-### 目录结构
-
-#### **layouts/** - 地图文件目录
-- 存放 `.lay` 格式的地图文件
-- 当前地图: `merged_mask_frame_0_small.lay`
-- 地图文件格式说明见下方
-
-#### **turn_based_output/** - 输出目录
-- 自动生成的游戏数据输出目录
-- 每局游戏创建一个子目录
-- 目录命名规则: `score_{最终得分}_{随机数}`
-
-### 配置文件
-
-#### **requirements.txt** - 依赖包
-```
-numpy>=1.20.0
-Pillow>=8.0.0
-pygame>=2.0.0
-mss>=6.0.0  # 用于截图（需要单独安装）
-```
-
-**安装依赖**:
 ```bash
 pip install -r requirements.txt
-pip install mss  # 截图功能需要
 ```
 
-### 文档文件
+### 基本使用
 
-#### **pacman2600规则.md** - 游戏规则说明
-- 详细说明 Atari 2600 版本的 Pac-Man 游戏规则
-- 包含生命系统、能量丸、维生素等规则说明
-- 分数表参考
-
-## 🎮 使用方法
-
-### 1. 安装依赖
 ```bash
-pip install -r requirements.txt
-pip install mss
-```
-
-### 2. 运行回合制游戏
-```bash
+# 使用默认设置（键盘控制，4个Ghost）
 python test_turn_based.py
+
+# 查看所有命令行参数
+python test_turn_based.py --help
 ```
 
-### 3. 游戏控制
-- **移动**: WASD 或方向键
-- **停止**: 空格键
-- **退出**: Q 键
+## 命令行参数
 
-### 4. 查看输出
-游戏结束后，在 `turn_based_output/` 目录下会生成以得分命名的文件夹，包含：
-- `screenshots/`: 每回合的截图（PNG）
-- `states/`: 每回合的游戏状态（PKL 或 JSON）
+| 参数 | 简写 | 说明 | 默认值 |
+|------|------|------|--------|
+| `--layout` | `-l` | 地图名称（不含.lay扩展名） | `merged_mask_frame_0_small` |
+| `--ghosts` | `-g` | Ghost 数量 | `4` |
+| `--agent` | `-a` | Pac-Man agent 类型 | `keyboard` |
+| `--mode` | `-m` | 游戏模式 | `turn-based` |
+| `--zoom` | `-z` | 窗口缩放比例 | `0.5` |
+| `--output` | `-o` | 输出目录 | `turn_based_output` |
 
-## 🎯 游戏规则
+### Agent 类型
+
+- **`keyboard` / `manual`**: 手动控制（键盘）
+  - `W/↑`: 向上 | `S/↓`: 向下 | `A/←`: 向左 | `D/→`: 向右
+  - `空格`: 停止 | `Q`: 退出
+- **`random`**: 随机移动
+- **`greedy`**: 贪心算法（朝最近食物移动）
+
+### 使用示例
+
+```bash
+# 1. 使用自动生成的地图，2个Ghost，随机agent
+python test_turn_based.py -l auto_generated -g 2 -a random
+
+# 2. 使用贪心agent，6个Ghost
+python test_turn_based.py -l test_map -g 6 -a greedy
+
+# 3. 完整参数示例
+python test_turn_based.py \
+  --layout auto_generated \
+  --ghosts 4 \
+  --agent keyboard \
+  --zoom 0.5
+```
+
+## 地图生成
+
+使用地图生成器创建新地图：
+
+```bash
+# 生成地图：宽度 高度 食物密度 能量豆数量 输出文件
+python map_generator.py 25 25 0.75 4 layouts/my_map.lay
+
+# 使用生成的地图
+python test_turn_based.py --layout my_map
+```
+
+**参数说明**：
+- 宽度/高度：地图尺寸（建议奇数，如 21, 25, 31）
+- 食物密度：0-1 之间的浮点数（0.7-0.8 为推荐值）
+- 能量豆数量：通常 4 个
+- 输出文件：保存路径（默认 `layouts/auto_generated.lay`）
+
+**生成规则**：
+- 最外圈自动设置为墙壁
+- 确保地图连通性
+- 自动放置两个传送门（Q）在最外层墙壁
+- 食物必须空一格（不相邻）
+- 能量豆尽可能分散
+
+## 游戏规则
 
 ### 生命系统
-- 初始生命数: **4 条**
-- 失去生命后: 继续游戏，Pac-Man 和 Ghost 重置到起始位置
-- 游戏结束条件: 生命数 ≤ 0
+- 初始生命数：**4 条**
+- 失去生命后继续游戏，所有角色重置到起始位置
+- 游戏结束条件：生命数 ≤ 0
 
 ### 分数系统
 | 项目 | 分数 |
@@ -237,183 +107,96 @@ python test_turn_based.py
 | 糖豆（Food Pellet） | 1 分 |
 | 能量丸（Power Pellet） | 5 分 |
 | 连续吃第 n 个鬼 | 10 × 2^n 分 |
-| 走路 | 不扣分 |
+| 完成一关 | 500 分 |
 
-### Ghost AI
-- **默认**: `DirectionalGhost`（智能 Ghost）
-- **正常状态**: 使用 A* 算法追踪 Pac-Man
-- **恐惧状态**: 逃离 Pac-Man
-- **数量**: 可自定义（默认 4 个），所有 Ghost 从同一位置初始化
+### 无限关卡
+- 当所有食物被吃光时，自动进入下一关
+- 生命 +1，所有角色重置，食物和能量豆刷新
+- 分数和吃鬼次数继续累计
+- 游戏可无限进行（只要有生命）
+
+### Ghost 系统
+- **AI 类型**：智能 Ghost（使用 A* 算法追踪 Pac-Man）
+- **正常状态**：追踪 Pac-Man
+- **恐惧状态**：逃离 Pac-Man（白色）
+- **复活机制**：被吃后等待 16 回合复活
+- **白色鬼持续时间**：基础 40 回合，每吃一个鬼减少 2 回合，最小 0 回合
 
 ### 传送门系统
-- **地图标记**: `Q` 字符表示传送门
-- **视觉效果**: 透明显示（不绘制墙）
-- **功能**:
-  - Pac-Man 可以移动到传送门位置并自动传送到另一个传送门
-  - Ghost 将传送门视为墙，无法通过
-  - 传送目标优先选择"内侧"位置（朝向地图中心）
-  - 地图中必须恰好有 2 个传送门
+- **地图标记**：`Q` 字符（透明显示）
+- **Pac-Man**：可移动到传送门并自动传送到另一个传送门
+- **Ghost**：将传送门视为墙，无法通过
+- **传送规则**：优先选择"内侧"位置（朝向地图中心）
 
-## 📊 数据导出格式
+## 地图文件格式
 
-### 截图格式
-- **格式**: PNG
-- **命名**: `turn_{回合数:06d}.png`
-- **内容**: 完整的游戏画面（Canvas 区域）
+`.lay` 文件使用文本格式，字符含义：
 
-### 状态格式
+| 字符 | 说明 |
+|------|------|
+| `%` | 墙壁（土黄色） |
+| `.` | 糖豆（Food Pellet） |
+| `o` | 能量丸（Power Pellet） |
+| `P` | Pac-Man 起始位置 |
+| `G` | Ghost 起始位置（所有 Ghost 从此初始化） |
+| `Q` | 传送门（必须恰好 2 个） |
+| `空格` | 可通行区域 |
 
-#### PKL 格式（默认）
-- **格式**: Python Pickle
-- **命名**: `state_{回合数:06d}.pkl`
-- **内容**: 完整的 `GameState` 对象
-- **用途**: 可以完全恢复游戏状态，用于训练和回放
+## 项目结构
 
-#### JSON 格式（可选）
-- **格式**: JSON
-- **命名**: `state_{回合数:06d}.json`
-- **内容**: 关键信息（分数、生命、位置、食物数量等）
-- **用途**: 人类可读，用于快速分析
-
-## 🔧 自定义配置
-
-### 修改地图
-1. 在 `layouts/` 目录下创建或修改 `.lay` 文件
-2. 在 `test_turn_based.py` 中修改 `layout.getLayout('地图名称')`
-
-### 修改窗口大小
-在 `test_turn_based.py` 中修改:
-```python
-display = graphicsDisplay.PacmanGraphics(zoom=0.5)  # 0.5 = 一半大小
+```
+.
+├── test_turn_based.py      # 主程序入口
+├── game.py                 # 游戏核心逻辑
+├── pacman.py               # Pac-Man 游戏规则
+├── layout.py               # 地图加载
+├── map_generator.py        # 自动地图生成器
+├── graphicsDisplay.py      # 图形显示
+├── keyboardAgents.py       # 键盘控制
+├── ghostAgents.py          # Ghost AI
+├── simpleAgents.py         # 简单 Agent（随机、贪心）
+├── turnBasedInterface.py   # 回合制接口（截图/状态导出）
+├── layouts/                # 地图文件目录
+└── requirements.txt        # 依赖包
 ```
 
-### 修改 Ghost 数量和 AI
-在 `test_turn_based.py` 中修改:
+## 自定义配置
+
+### 修改显示元素
+
+在 `graphicsDisplay.py` 中修改常量：
+
 ```python
-# 设置 Ghost 数量（默认 4 个）
-num_ghosts = 4  # 可以修改这个值
-
-from ghostAgents import RandomGhost, DirectionalGhost
-ghosts = [DirectionalGhost(i+1) for i in range(num_ghosts)]
-```
-
-### 修改网格尺寸
-在 `test_turn_based.py` 中修改:
-```python
-# 独立调整网格宽度和高度
-display = graphicsDisplay.PacmanGraphics(
-    zoom=0.5,
-    gridWidth=30.0,  # 网格宽度
-    gridHeight=80.0  # 网格高度
-)
-```
-
-### 修改游戏元素颜色和尺寸
-在 `graphicsDisplay.py` 中修改常量:
-```python
-# 墙壁颜色
-WALL_COLOR = formatColor(231.0/255.0, 197.0/255.0, 82.0/255.0)  # 土黄色
-
 # 背景颜色
 BACKGROUND_COLOR = formatColor(20/255, 65/255, 202/255)  # 蓝色
 
-# 食物尺寸（相对于网格）
-FOOD_WIDTH_SCALE = 0.5   # 食物宽度比例
-FOOD_HEIGHT_SCALE = 0.05  # 食物高度比例
+# 食物尺寸
+FOOD_WIDTH_SCALE = 0.5
+FOOD_HEIGHT_SCALE = 0.05
 
-# 能量丸尺寸（相对于网格）
-CAPSULE_WIDTH_SCALE = 0.25  # 能量丸宽度比例
-CAPSULE_HEIGHT_SCALE = 0.3  # 能量丸高度比例
+# 能量丸尺寸
+CAPSULE_WIDTH_SCALE = 0.25
+CAPSULE_HEIGHT_SCALE = 0.3
 ```
 
-### 修改导出格式
-在 `turnBasedInterface.py` 的 `export_state()` 方法中修改 `format` 参数:
+### 修改窗口大小
+
 ```python
-export_interface.export_state(game_state, turn, format='json')  # 或 'pkl'
+# 在 test_turn_based.py 中
+display = graphicsDisplay.PacmanGraphics(zoom=0.5)  # 缩放比例
 ```
 
-## 📝 地图文件格式
-
-`.lay` 文件使用文本格式，字符含义：
-- `%`: 墙壁（Wall，土黄色）
-- `.`: 糖豆（Food Pellet）
-- `o`: 能量丸（Power Pellet）
-- `P`: Pac-Man 起始位置
-- `G`: Ghost 起始位置（所有 Ghost 都从此位置初始化）
-- `Q`: 传送门（透明显示，Pac-Man 可传送，Ghost 视为墙，必须恰好有 2 个）
-- `空格`: 可通行区域
-
-示例：
-```
-%%%%%%%%%%%%%%%%%%%Q%%%%%%%%%%%%%%%%%%%
-% . . . . . .  % . . . %  . . . . . . %
-%o %%%  %  %%  %  %%%  %  %%  %  %%% o%
-% . . . % . . . . . . . . . . % . . . %
-%%%%  %%%  %%%%%  %%%  %%%%%  %%%  %%%%
-% . . . . . .  % . . . %  . . . . . . %
-%  %%%  %  %%  %  %%%  %  %%  %  %%%  %
-% . . . % . . . . %G% . . . . % . . . %
-%%%%  %%%  %%%%%  % %  %%%%%  %%%  %%%%
-% . . . . . .  % . P . %  . . . . . . %
-%o %%%  %  %%  %  %%%  %  %%  %  %%% o%
-% . . . % . . . . . . . . . . % . . . %
-%%%%%%%%%%%%%%%%%%%Q%%%%%%%%%%%%%%%%%%%
-```
-
-## 🐛 常见问题
-
-### 1. 截图失败
-- **问题**: `mss截图失败: 'float' object cannot be interpreted as an integer`
-- **解决**: 已修复，确保坐标和尺寸为整数
-
-### 2. 窗口大小变化
-- **问题**: 第一回合后窗口自动变小
-- **解决**: 已实现 Canvas 尺寸缓存机制
-
-### 3. 文件锁定错误
-- **问题**: `WinError 32: 另一个程序正在使用此文件`
-- **解决**: 已改用 `mss` 库，避免文件锁定问题
-
-### 4. 导入错误
-- **问题**: `ModuleNotFoundError: No module named 'mss'`
-- **解决**: 运行 `pip install mss`
-
-## 📚 技术栈
+## 技术栈
 
 - **Python 3.x**
 - **Tkinter**: 图形界面
-- **PIL/Pillow**: 图像处理
-- **mss**: 屏幕截图
-- **pickle**: 状态序列化
 - **A* 算法**: Ghost 路径规划
+- **递归回溯**: 地图生成算法
 
-## 🔄 开发历史
-
-- ✅ 实现回合制游戏模式
-- ✅ 实现截图和状态导出功能
-- ✅ 实现生命系统（4 条生命）
-- ✅ 实现分数系统（糖豆 1 分，能量丸 5 分，吃鬼递增）
-- ✅ 移除走路扣分机制
-- ✅ 移除 Agent 超时机制
-- ✅ 实现智能 Ghost（A* 算法）
-- ✅ 优化截图机制（使用 mss 库）
-- ✅ 实现游戏目录自动命名（基于得分）
-- ✅ 项目结构优化（文件整理到根目录）
-- ✅ 实现传送门系统（Q 字符，透明显示）
-- ✅ 支持自定义 Ghost 数量（所有 Ghost 从同一位置初始化）
-- ✅ 调整移动顺序（Pac-Man 先走，然后 Ghost 依次移动）
-- ✅ 实现可自定义的图形元素（颜色、尺寸、网格比例）
-- ✅ 支持独立调整网格宽度和高度
-
-## 📄 许可证
+## 许可证
 
 本项目基于 UC Berkeley 的 Pac-Man AI 项目修改，遵循原项目的许可证要求。
 
-## 👥 贡献
-
-本项目用于训练视觉模型，欢迎提出改进建议。
-
 ---
 
-**最后更新**: 2025年1月2日
-
+**最后更新**: 2025年1月3日

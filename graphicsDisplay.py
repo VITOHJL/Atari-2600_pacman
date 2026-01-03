@@ -230,8 +230,11 @@ class PacmanGraphics:
     def drawStaticObjects(self, state):
         layout = self.layout
         self.drawWalls(layout.walls)
-        self.food = self.drawFood(layout.food)
-        self.capsules = self.drawCapsules(layout.capsules)
+        # 使用 state.food 和 state.capsules，而不是 layout.food 和 layout.capsules
+        # 这样在新回合开始时，食物和能量豆能正确显示
+        # 注意：state 是 GameStateData 对象，不是 GameState 对象
+        self.food = self.drawFood(state.food)
+        self.capsules = self.drawCapsules(state.capsules)
         refresh()
 
     def drawAgentObjects(self, state):
@@ -263,6 +266,40 @@ class PacmanGraphics:
         refresh()
 
     def update(self, newState):
+        # 检测新回合开始：检查 _roundComplete 标志或食物数量突然增加
+        # 需要重新绘制所有食物和能量豆
+        should_refresh_food = False
+        
+        # 方法1：检查 _roundComplete 标志（最准确）
+        if hasattr(newState, '_roundComplete') and newState._roundComplete:
+            should_refresh_food = True
+        
+        # 方法2：如果方法1没检测到，检查食物数量是否突然增加（备用检测）
+        if not should_refresh_food and hasattr(self, 'previousState') and self.previousState is not None:
+            prevFoodCount = self.previousState.food.count()
+            newFoodCount = newState.food.count()
+            # 如果食物数量突然增加（从0或很少增加到很多），说明新回合开始了
+            if prevFoodCount < newFoodCount and newFoodCount > 10:
+                should_refresh_food = True
+        
+        # 如果检测到新回合，刷新食物和能量豆显示
+        if should_refresh_food:
+            # 清除所有旧的食物和能量豆图像
+            if hasattr(self, 'food') and self.food is not None:
+                for row in self.food:
+                    for item in row:
+                        if item is not None:
+                            remove_from_screen(item)
+            if hasattr(self, 'capsules') and self.capsules is not None:
+                for capsule, item in self.capsules.items():
+                    if item is not None:
+                        remove_from_screen(item)
+            # 重新绘制所有食物和能量豆
+            # 注意：newState 是 GameStateData 对象，不是 GameState 对象
+            self.food = self.drawFood(newState.food)
+            self.capsules = self.drawCapsules(newState.capsules)
+            refresh()
+        
         # 首先检查所有鬼的状态，处理死亡和复活
         for index, agentState in enumerate(newState.agentStates):
             if agentState.isPacman:
@@ -314,6 +351,9 @@ class PacmanGraphics:
         self.infoPane.updateScore(newState.score, lives)
         if 'ghostDistances' in dir(newState):
             self.infoPane.updateGhostDistances(newState.ghostDistances)
+        
+        # 更新 previousState 以便下次比较
+        self.previousState = newState
 
     def make_window(self, width, height):
         grid_width = (width-1) * self.gridWidth

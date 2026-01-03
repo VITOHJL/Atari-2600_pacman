@@ -292,7 +292,11 @@ class ClassicGameRules:
         if hasattr(state.data, '_roundComplete') and state.data._roundComplete:
             self.startNewRound(state, game)
             state.data._roundComplete = False
+            # 注意：在 startNewRound 后，不应该检查 isWin()，因为我们已经刷新了食物
+            # 游戏应该继续，而不是结束
+            return  # 直接返回，不检查 win/lose，让游戏继续
         
+        # 只有在没有开始新回合的情况下，才检查 win/lose
         if state.isWin(): self.win(state, game)
         if state.isLose(): self.lose(state, game)
 
@@ -344,6 +348,12 @@ class ClassicGameRules:
         # 清除可能阻止游戏继续的标志
         state.data._win = False
         state.data._lose = False
+        
+        # 立即更新显示，确保食物和能量豆被刷新
+        # 注意：这里需要强制刷新显示，因为食物和能量豆已经更新了
+        if game.display is not None:
+            # 触发显示更新，确保食物和能量豆被重新绘制
+            game.display.update(state.data)
         
         # 积分和ghostsEatenInRow保持不变（继续累计）
         # 不需要做任何操作，因为它们已经在state.data中

@@ -388,6 +388,13 @@ class GameStateData:
             self.score = prevState.score
             self.lives = prevState.lives  # 复制生命数
             self.ghostsEatenInRow = prevState.ghostsEatenInRow  # 复制连续吃鬼计数
+            # 复制 _roundComplete 标志（重要：用于无限循环）
+            if hasattr(prevState, '_roundComplete'):
+                self._roundComplete = prevState._roundComplete
+            else:
+                self._roundComplete = False
+        else:
+            self._roundComplete = False  # 标记是否完成一轮（所有食物被吃光）
 
         self._foodEaten = None
         self._foodAdded = None
@@ -395,7 +402,8 @@ class GameStateData:
         self._agentMoved = None
         self._lose = False
         self._win = False
-        self._roundComplete = False  # 标记是否完成一轮（所有食物被吃光）
+        if not hasattr(self, '_roundComplete'):
+            self._roundComplete = False  # 标记是否完成一轮（所有食物被吃光）
         self.scoreChange = 0
 
     def deepCopy( self ):
@@ -411,6 +419,9 @@ class GameStateData:
             state.lives = self.lives
         if hasattr(self, 'ghostsEatenInRow'):
             state.ghostsEatenInRow = self.ghostsEatenInRow
+        # 确保 _roundComplete 标志被复制（重要：用于无限循环）
+        if hasattr(self, '_roundComplete'):
+            state._roundComplete = self._roundComplete
         return state
 
     def copyAgentStates( self, agentStates ):
